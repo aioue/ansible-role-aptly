@@ -22,8 +22,8 @@ echo 'deb http://<server_name>/<respository_name> trusty main' > /etc/apt/source
 
 ```shell
 curl -v -X POST -F file=@<package_name>.deb http://localhost:8080/api/files/<package_name>
-curl -v -X POST http://localhost:8080/api/repos/yourcompany-dev/file/newpackage
-curl -v -X PUT -H 'Content-Type: application/json' --data '{}' http://localhost:8080/api/publish/yourcompany-dev/trusty
+curl -v -X POST http://localhost:8080/api/repos/<repository_name>/file/<package_name>
+curl -v -X PUT -H 'Content-Type: application/json' --data '{}' http://localhost:8080/api/publish/<repository_name>/trusty
 ```
 
 ## License
