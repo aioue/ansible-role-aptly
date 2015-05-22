@@ -1,0 +1,48 @@
+---
+
+- name: install test dependencies
+  sudo: true
+  apt: name=python-httplib2
+
+- name: test aptly output
+  uri:
+    url: http://localhost:8080/api/repos
+
+- name: copy dummy package
+  sudo: yes
+  copy: src=dummy_0.1_all.deb dest=/home/{{ ansible_ssh_user }}
+
+- name: upload dummy package to server
+  command: >
+    curl -X POST -F file=@dummy_0.1_all.deb http://localhost:8080/api/files/dummy
+
+- name: add dummy package to repository
+  command: >
+    curl -X POST http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/file/dummy
+  when: aptly_repositories is defined
+
+- name: publish new local repository
+  command: >
+    curl -X POST -H 'Content-Type: application/json' --data '{"SourceKind": "local", "Sources": [{ "Name": "{{ aptly_repositories[0].name }}" }], "Architectures": ["amd64"] }' http://localhost:8080/api/publish/{{ aptly_repositories[0].name }}
+  when: aptly_repositories is defined
+
+- name: list packages in repository
+  command: >
+    curl http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages
+  when: aptly_repositories is defined
+
+- name: list packages called dummy
+  command: >
+    curl http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages?q=dummy
+  when: aptly_repositories is defined
+  register: listed_packages
+
+- name: delete package from repo by key
+  command: >
+    curl -X DELETE -H 'Content-Type: application/json' --data '{"PackageRefs": {{ listed_packages.stdout }}}' http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages
+  when: aptly_repositories is defined
+
+- name: update published repo
+  command: >
+    curl -X PUT -H 'Content-Type: application/json' --data '{}' http://localhost:8080/api/publish/{{ aptly_repositories[0].name }}/trusty
+  when: aptly_repositories is defined

@@ -1,0 +1,59 @@
+---
+# tasks file for aptly
+
+- name: import aptly repo key
+  sudo: yes
+  apt_key: id=E083A3782A194991 keyserver=keys.gnupg.net state=present
+
+- name: add aptly debian repository
+  sudo: yes
+  apt_repository: repo='deb http://repo.aptly.info/ squeeze main' state=present update_cache=yes
+
+- name: install required packages
+  sudo: yes
+  apt: name={{ item }} state=present
+  with_items:
+    - gnupg2
+    - rng-tools
+    - aptly
+
+# begin key creation tasks
+
+- name: start rngd for entroy creation
+  sudo: true
+  command: rngd -b -r /dev/urandom creates=/home/{{ ansible_ssh_user }}/key.sec
+
+- name: copy gpg key-gen batch file
+  template:
+    src: gpg2_gen_key.j2
+    dest: /home/{{ ansible_ssh_user }}/gpg2_gen_key
+    mode: 0644
+
+- name: create key
+  command: gpg --batch --gen-key /home/{{ ansible_ssh_user }}/gpg2_gen_key creates=/home/{{ ansible_ssh_user }}/key.sec
+
+- name: stop random source
+  service:
+    name: rng-tools
+    state: stopped
+
+- name: import pub key to gnupg
+  command: gpg2 --import /home/{{ ansible_ssh_user }}/key.pub
+
+# ignore 'already in secret keyring' error
+- name: import sec key to gnupg
+  command: gpg2 --import /home/{{ ansible_ssh_user }}/key.sec
+  ignore_errors: yes
+
+# end key creation tasks
+
+- name: start aptly API (will conflict with command line until stopped)
+  command: sh -c "nohup aptly api serve 2>&1 >/dev/null &"
+
+- name: create repositories
+  command: >
+    curl -X POST -H 'Content-Type: application/json' --data '{"name": "{{ item.name }}", "comment": "{{ item.comment }}", "DefaultDistribution": "{{ item.default_distribution }}", "DefaultComponent": "{{ item.default_component }}" }' http://localhost:8080/api/repos
+  with_items: aptly_repositories
+  when: aptly_repositories is defined
+
+- include: test.yml

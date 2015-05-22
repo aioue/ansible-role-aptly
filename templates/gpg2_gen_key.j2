@@ -1,0 +1,12 @@
+%echo Generating a default key
+Key-Type: DSA
+Key-Length: 2048
+Name-Real: {{ aptly_company_name }}
+Name-Comment: aptly key no passphrase
+Name-Email: {{ aptly_key_email }}
+Expire-Date: 0
+%pubring key.pub
+%secring key.sec
+# Do a commit here, so that we can later print "done" :-)
+%commit
+%echo done
