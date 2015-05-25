@@ -17,9 +17,9 @@
     - rng-tools
     - aptly
 
-# begin key creation tasks
+# begin key creation tasks (automatically generates and imports a DSA key-pair to get you up and running quickly)
 
-- name: start rngd for entroy creation
+- name: start rngd for entropy creation
   sudo: true
   command: rngd -b -r /dev/urandom creates=/home/{{ ansible_ssh_user }}/key.sec
 
