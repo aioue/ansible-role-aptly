@@ -1,20 +1,20 @@
-aptly
-=====
+## aptly
 
-Installs the [aptly](http://www.aptly.info/) respository manager and enables the REST API.
+* Installs the [aptly](http://www.aptly.info/) respository manager and enables the [REST API](http://www.aptly.info/doc/api/)
 
-Includes test tasks which perform common actions on the repository using curl requests.
+* Includes [test tasks](https://github.com/aioue/ansible-role-aptly/blob/master/tasks/test.yml) which perform common actions on the repository using curl requests
 
-Role Variables
---------------
+* Generates its own keypair used for signing
 
-* vars/main.yml: `aptly_key_email` email used create your gpg key
+### Role Variables
+
+* vars/main.yml: `aptly_key_email` email used to create your gpg key
 * vars/main.yml: `aptly_company_name` name used to create your gpg key
 
 ### Setup clients to use the repo
 
 ```shell
-apt-key add <generated public key on server>
+apt-key add <public.key generated on server>
 echo 'deb http://<server_name>/<respository_name> trusty main' > /etc/apt/sources.list.d/<respository_name>.list
 ```
 
