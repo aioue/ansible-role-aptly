@@ -47,6 +47,7 @@
 
 # end key creation tasks
 
+# CLI conflict - https://github.com/smira/aptly/issues/234
 - name: start aptly API (will conflict with command line until stopped)
   command: sh -c "nohup aptly api serve 2>&1 >/dev/null &"
 
