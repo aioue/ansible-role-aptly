@@ -14,8 +14,8 @@
 ### Setup clients to use the repo
 
 ```shell
-apt-key add <public.key generated on server>
-echo 'deb http://<server_name>/<respository_name> trusty main' > /etc/apt/sources.list.d/<respository_name>.list
+apt-key add {public.key generated on server}
+echo 'deb http://{server_name}/{respository_name} trusty main' > /etc/apt/sources.list.d/<respository_name>.list
 ```
 
 ### Upload a new package using the REST API
