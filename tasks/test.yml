@@ -10,11 +10,11 @@
 
 - name: copy dummy package
   sudo: yes
-  copy: src=dummy_0.1_all.deb dest=/home/{{ ansible_ssh_user }}
+  copy: src=dummy_0.1_all.deb dest=/tmp
 
 - name: upload dummy package to server
   command: >
-    curl -X POST -F file=@dummy_0.1_all.deb http://localhost:8080/api/files/dummy
+    curl -X POST -F file=@/tmp/dummy_0.1_all.deb http://localhost:8080/api/files/dummy
 
 - name: add dummy package to repository
   command: >

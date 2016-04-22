@@ -1,2 +1,5 @@
 ---
 # defaults file for aptly
+
+# The |default... stuff is because `ansible_ssh_user` doesn't work in Ansible 2.0
+aptly_gpg_key_dir: "{{ lookup('env', 'HOME') }}"
