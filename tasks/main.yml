@@ -21,16 +21,16 @@
 
 - name: start rngd for entropy creation
   sudo: true
-  command: rngd -b -r /dev/urandom creates=/home/{{ ansible_ssh_user }}/key.sec
+  command: rngd -b -r /dev/urandom creates={{ aptly_gpg_key_dir }}/key.sec
 
 - name: copy gpg key-gen batch file
   template:
     src: gpg2_gen_key.j2
-    dest: /home/{{ ansible_ssh_user }}/gpg2_gen_key
+    dest: "{{ aptly_gpg_key_dir }}/gpg2_gen_key"
     mode: 0644
 
 - name: create key
-  command: gpg --batch --gen-key /home/{{ ansible_ssh_user }}/gpg2_gen_key creates=/home/{{ ansible_ssh_user }}/key.sec
+  command: gpg --batch --gen-key {{ aptly_gpg_key_dir }}/gpg2_gen_key creates={{ aptly_gpg_key_dir }}/key.sec
 
 - name: stop random source
   service:
@@ -38,11 +38,11 @@
     state: stopped
 
 - name: import pub key to gnupg
-  command: gpg2 --import /home/{{ ansible_ssh_user }}/key.pub
+  command: gpg2 --import {{ aptly_gpg_key_dir }}/key.pub
 
 # ignore 'already in secret keyring' error
 - name: import sec key to gnupg
-  command: gpg2 --import /home/{{ ansible_ssh_user }}/key.sec
+  command: gpg2 --import {{ aptly_gpg_key_dir }}/key.sec
   ignore_errors: yes
 
 # end key creation tasks
