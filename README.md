@@ -1,6 +1,6 @@
 ## aptly
 
-* Installs the [aptly](http://www.aptly.info/) respository manager and enables the [REST API](http://www.aptly.info/doc/api/)
+* Installs the [aptly](http://www.aptly.info/) repository manager and enables the [REST API](http://www.aptly.info/doc/api/)
 
 * Includes [test tasks](https://github.com/aioue/ansible-role-aptly/blob/master/tasks/test.yml) which perform common actions on the repository using curl requests
 
