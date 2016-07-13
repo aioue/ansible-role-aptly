@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Tom Paine
-  description:
+  description: Install aptly debian respository manager and enable the REST API
   company: aioue.net
   license: MIT
   min_ansible_version: 1.2
