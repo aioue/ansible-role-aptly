@@ -21,7 +21,7 @@
 
 - name: start rngd for entropy creation
   sudo: true
-  command: rngd -b -r /dev/urandom creates={{ aptly_gpg_key_dir }}/key.sec
+  command: rngd -b -r /dev/hwrandom creates={{ aptly_gpg_key_dir }}/key.sec
 
 - name: copy gpg key-gen batch file
   template:
