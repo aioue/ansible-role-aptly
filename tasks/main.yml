@@ -2,26 +2,35 @@
 # tasks file for aptly
 
 - name: import aptly repo key
-  sudo: yes
-  apt_key: id=9E3E53F19C7DE460 keyserver=keys.gnupg.net state=present
+  become: yes
+  apt_key:
+      id: "ED75B5A4483DA07C"
+      keyserver: "hkp://p80.pool.sks-keyservers.net:80"
+      state: present
 
 - name: add aptly debian repository
-  sudo: yes
-  apt_repository: repo='deb http://repo.aptly.info/ squeeze main' state=present update_cache=yes
-
+  become: yes
+  apt_repository:
+    repo: 'deb http://repo.aptly.info/ squeeze main'
+    state: present
 - name: install required packages
-  sudo: yes
-  apt: name={{ item }} state=present
-  with_items:
-    - gnupg2
-    - rng-tools
-    - aptly
+  become: yes
+  apt:
+    name: gnupg2,rng-tools,aptly
+    update_cache: yes
 
 # begin key creation tasks (automatically generates and imports a DSA key-pair to get you up and running quickly)
 
 - name: start rngd for entropy creation
-  sudo: true
-  command: rngd -b -r /dev/hwrandom creates={{ aptly_gpg_key_dir }}/key.sec
+  become: true
+  command: rngd -b -r /dev/hwrandom
+  args:
+    creates: "{{ aptly_gpg_key_dir }}/key.sec"
+
+- name: create aptly_gpg_key_dir
+  file:
+    path: "{{ aptly_gpg_key_dir }}"
+    state: directory
 
 - name: copy gpg key-gen batch file
   template:
@@ -30,7 +39,9 @@
     mode: 0644
 
 - name: create key
-  command: gpg --batch --gen-key {{ aptly_gpg_key_dir }}/gpg2_gen_key creates={{ aptly_gpg_key_dir }}/key.sec
+  command: gpg2 --batch --gen-key {{ aptly_gpg_key_dir }}/gpg2_gen_key
+  args:
+    creates: "{{ aptly_gpg_key_dir }}/key.sec"
 
 - name: stop random source
   service:
