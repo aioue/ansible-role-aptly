@@ -1,7 +1,7 @@
 ---
 
 - name: install test dependencies
-  sudo: true
+  become: true
   apt: name=python-httplib2
 
 - name: test aptly output
@@ -9,7 +9,7 @@
     url: http://localhost:8080/api/repos
 
 - name: copy dummy package
-  sudo: yes
+  become: true
   copy: src=dummy_0.1_all.deb dest=/tmp
 
 - name: upload dummy package to server

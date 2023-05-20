@@ -1,5 +1,5 @@
 ---
-aptly_gpg_key_dir: "{{ lookup('env', 'HOME') }}"
+# aptly_gpg_key_dir: "{{ lookup('env', 'HOME') }}"
 aptly_key_email: foo@bar.com
 aptly_company_name: yourcompany
 aptly_repositories:

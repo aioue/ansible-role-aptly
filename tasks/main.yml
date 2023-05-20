@@ -4,8 +4,8 @@
 - name: import aptly repo key
   become: yes
   apt_key:
-      id: "ED75B5A4483DA07C"
-      keyserver: "hkp://p80.pool.sks-keyservers.net:80"
+      id: "A0546A43624A8331" 
+      keyserver: "keyserver.ubuntu.com" 
       state: present
 
 - name: add aptly debian repository
@@ -13,13 +13,15 @@
   apt_repository:
     repo: 'deb http://repo.aptly.info/ squeeze main'
     state: present
+
 - name: install required packages
   become: yes
   apt:
-    name: gnupg2,rng-tools,aptly
+    name: gnupg2,rng-tools,aptly, curl
     update_cache: yes
 
 # begin key creation tasks (automatically generates and imports a DSA key-pair to get you up and running quickly)
+
 
 - name: start rngd for entropy creation
   become: true
@@ -44,6 +46,7 @@
     creates: "{{ aptly_gpg_key_dir }}/key.sec"
 
 - name: stop random source
+  become: true
   service:
     name: rng-tools
     state: stopped
@@ -56,16 +59,22 @@
   command: gpg2 --import {{ aptly_gpg_key_dir }}/key.sec
   ignore_errors: yes
 
+# ignore 'already in secret keyring' error
+- name: import sec key to gnupg
+  command: gpg2 --import {{ aptly_gpg_key_dir }}/key.sec
+  ignore_errors: yes
+
 # end key creation tasks
 
-# CLI conflict - https://github.com/smira/aptly/issues/234
+# # CLI conflict - https://github.com/smira/aptly/issues/234
 - name: start aptly API (will conflict with command line until stopped)
-  command: sh -c "nohup aptly api serve 2>&1 >/dev/null &"
+  command: sh -c "nohup aptly api serve -no-lock 2>&1 >/dev/null &"
 
 - name: create repositories
-  command: >
+  command: >-
     curl -X POST -H 'Content-Type: application/json' --data '{"name": "{{ item.name }}", "comment": "{{ item.comment }}", "DefaultDistribution": "{{ item.default_distribution }}", "DefaultComponent": "{{ item.default_component }}" }' http://localhost:8080/api/repos
-  with_items: aptly_repositories
+  with_items: 
+    - "{{ aptly_repositories }}"
   when: aptly_repositories is defined
 
-- include: test.yml
+- include_tasks: test.yml
