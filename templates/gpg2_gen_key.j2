@@ -5,6 +5,8 @@ Name-Real: {{ aptly_company_name }}
 Name-Comment: aptly key no passphrase
 Name-Email: {{ aptly_key_email }}
 Expire-Date: 0
+%no-ask-passphrase
+%no-protection
 %pubring {{ aptly_gpg_key_dir }}/key.pub
 %secring {{ aptly_gpg_key_dir }}/key.sec
 # Do a commit here, so that we can later print "done" :-)
