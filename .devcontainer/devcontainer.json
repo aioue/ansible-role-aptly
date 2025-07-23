@@ -1,0 +1,61 @@
+{
+	"name": "ansible-role-aptly",
+
+	"build": {
+		// Path is relative to the devcontainer.json file
+		"dockerfile": "Dockerfile",
+		"args": {
+			// Set vscode devcontainer arg for Dockerfile validation
+			"vscodedevcontainer": "true"
+		}
+	},
+
+	// Features to add to the dev container
+	"features": {
+		"ghcr.io/devcontainers/features/python:1": {
+			"toolsToInstall": "virtualenv,argcomplete"
+		}
+	},
+
+	// Lifecycle commands for better container management
+	"onCreateCommand": "echo '🏗️  Container created, preparing ansible-role-aptly testing environment...'",
+	// "postCreateCommand": ".devcontainer/setup.sh",
+	"postStartCommand": "echo '🚀 Ansible role testing environment ready!'",
+
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh",
+		"source=ansible-role-aptly-bashhistory,target=/commandhistory,type=volume"
+	],
+
+	// Configure tool-specific properties
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"redhat.ansible",
+				"ms-python.python"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"files.watcherExclude": {
+					"**/.git/**": true,
+					"**/.ansible/**": true,
+					"**/roles/**/.git/**": true,
+					"**/.molecule/**": true
+				},
+				"ansible.python.interpreterPath": "/usr/bin/python3",
+				"ansible.validation.lint.enabled": true,
+				"ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint"
+			}
+		}
+	},
+
+	// Expose aptly API port for testing
+	"forwardPorts": [8080],
+	"portsAttributes": {
+		"8080": {
+			"label": "Aptly API",
+			"onAutoForward": "notify"
+		}
+	}
+} 

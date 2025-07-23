@@ -1,48 +1,149 @@
 ---
 
+# Install test dependencies using modern approach
+# python3-requests replaced the older python-httplib2 package
 - name: install test dependencies
   become: true
-  apt: name=python-httplib2
+  apt: 
+    name: python3-requests  # Modern alternative to python-httplib2
+    state: present
 
-- name: test aptly output
+- name: test aptly API version
+  uri:
+    url: http://localhost:8080/api/version
+    method: GET
+  register: version_check
+
+- name: display aptly version
+  debug:
+    msg: "Aptly API Version: {{ version_check.json.Version }}"
+
+- name: test aptly repositories list
   uri:
     url: http://localhost:8080/api/repos
+    method: GET
+  register: repos_list
+
+- name: display available repositories
+  debug:
+    msg: "Available repositories: {{ repos_list.json }}"
 
 - name: copy dummy package
   become: true
-  copy: src=dummy_0.1_all.deb dest=/tmp
+  copy: 
+    src: dummy_0.1_all.deb 
+    dest: /tmp/dummy_test.deb
 
+# Use curl for file upload as it's more reliable than the uri module for multipart uploads
 - name: upload dummy package to server
   command: >
-    curl -X POST -F file=@/tmp/dummy_0.1_all.deb http://localhost:8080/api/files/dummy
+    curl -X POST -F file=@/tmp/dummy_test.deb http://localhost:8080/api/files/dummy-test-new
+  register: upload_result
+
+- name: display upload result
+  debug:
+    msg: "Upload result: {{ upload_result.stdout }}"
 
 - name: add dummy package to repository
-  command: >
-    curl -X POST http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/file/dummy
+  uri:
+    url: "http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/file/dummy-test-new"
+    method: POST
+  register: add_package_result
   when: aptly_repositories is defined
 
+- name: display add package result
+  debug:
+    msg: "Add package result: {{ add_package_result.json | default('N/A') }}"
+  when: aptly_repositories is defined
+
+# Check if repository is already published
+- name: check if repository is already published
+  uri:
+    url: "http://localhost:8080/api/publish"
+    method: GET
+  register: published_repos
+
+- name: display published repositories
+  debug:
+    msg: "Published repositories: {{ published_repos.json }}"
+
+# Only publish if not already published
 - name: publish new local repository
-  command: >
-    curl -X POST -H 'Content-Type: application/json' --data '{"SourceKind": "local", "Sources": [{ "Name": "{{ aptly_repositories[0].name }}" }], "Architectures": ["amd64"] }' http://localhost:8080/api/publish/{{ aptly_repositories[0].name }}
+  uri:
+    url: "http://localhost:8080/api/publish/{{ aptly_repositories[0].name }}"
+    method: POST
+    body_format: json
+    body:
+      SourceKind: "local"
+      Sources: 
+        - Name: "{{ aptly_repositories[0].name }}"
+      Architectures: ["amd64"]
+    headers:
+      Content-Type: application/json
+  when: 
+    - aptly_repositories is defined
+    - published_repos.json | selectattr('Prefix', 'equalto', aptly_repositories[0].name) | list | length == 0
+  register: publish_result
+  ignore_errors: true
+
+- name: display publish result
+  debug:
+    msg: "Publish result: {{ publish_result.json | default('Repository already published or error occurred') }}"
   when: aptly_repositories is defined
 
 - name: list packages in repository
-  command: >
-    curl http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages
+  uri:
+    url: "http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages"
+    method: GET
   when: aptly_repositories is defined
+  register: package_list
 
-- name: list packages called dummy
-  command: >
-    curl http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages?q=dummy
+- name: display packages in repository
+  debug:
+    msg: "Packages in repository: {{ package_list.json }}"
+  when: aptly_repositories is defined and package_list.json is defined
+
+- name: search for packages called dummy
+  uri:
+    url: "http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages?q=dummy"
+    method: GET
   when: aptly_repositories is defined
-  register: listed_packages
+  register: dummy_packages
 
-- name: delete package from repo by key
-  command: >
-    curl -X DELETE -H 'Content-Type: application/json' --data '{"PackageRefs": {{ listed_packages.stdout }}}' http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages
-  when: aptly_repositories is defined
+- name: display dummy packages found
+  debug:
+    msg: "Dummy packages found: {{ dummy_packages.json }}"
+  when: aptly_repositories is defined and dummy_packages.json is defined
 
+- name: delete package from repo by key (if packages exist)
+  uri:
+    url: "http://localhost:8080/api/repos/{{ aptly_repositories[0].name }}/packages"
+    method: DELETE
+    body_format: json
+    body:
+      PackageRefs: "{{ dummy_packages.json }}"
+    headers:
+      Content-Type: application/json
+  when: 
+    - aptly_repositories is defined 
+    - dummy_packages.json is defined 
+    - dummy_packages.json | length > 0
+  ignore_errors: true
+
+# Use the distribution from aptly_repositories config instead of hardcoded 'trusty'
 - name: update published repo
-  command: >
-    curl -X PUT -H 'Content-Type: application/json' --data '{}' http://localhost:8080/api/publish/{{ aptly_repositories[0].name }}/trusty
+  uri:
+    url: "http://localhost:8080/api/publish/{{ aptly_repositories[0].name }}/{{ aptly_repositories[0].default_distribution }}"
+    method: PUT
+    body_format: json
+    body: {}
+    headers:
+      Content-Type: application/json
+  when: aptly_repositories is defined
+  ignore_errors: true
+  register: update_result
+
+- name: display update result
+  debug:
+    msg: "Update publish result: {{ update_result.json | default('Update completed or repository not published') }}"
   when: aptly_repositories is defined

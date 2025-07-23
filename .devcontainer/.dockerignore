@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Molecule and testing artifacts
+.molecule
+.cache
+.pytest_cache
+
+# Ansible artifacts
+.ansible
+*.retry
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+
+# IDE
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log 

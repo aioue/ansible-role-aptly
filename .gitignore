@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Ansible
+*.retry
+.ansible/
+
+# Molecule
+.molecule/
+.cache/
+
+# IDE/Editor
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+nohup.out
+
+# Test artifacts
+tests/output/

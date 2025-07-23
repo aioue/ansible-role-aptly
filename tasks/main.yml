@@ -1,80 +1,188 @@
 ---
 # tasks file for aptly
 
-- name: import aptly repo key
-  become: yes
-  apt_key:
-      id: "A0546A43624A8331" 
-      keyserver: "keyserver.ubuntu.com" 
-      state: present
+# Gather distribution information for proper repository setup
+- name: gather distribution facts
+  setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - 'distribution'
 
-- name: add aptly debian repository
-  become: yes
+# Use the system's distribution codename for aptly repository
+# Assumes aptly has a release for the current Ubuntu codename
+- name: set aptly distribution based on system codename
+  set_fact:
+    aptly_distribution: "{{ ansible_distribution_release }}"
+  when: ansible_distribution == "Ubuntu"
+
+# Create apt keyrings directory if it doesn't exist
+# Required for modern apt key management on older systems
+- name: create apt keyrings directory
+  become: true
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+# Download and install aptly GPG key using modern approach
+# Replaces deprecated apt_key module with direct key download
+- name: download aptly gpg key
+  become: true
+  get_url:
+    url: https://www.aptly.info/pubkey.txt
+    dest: /etc/apt/keyrings/aptly.asc
+    mode: '0644'
+    owner: root
+    group: root
+    force: true  # Ensures key updates are downloaded
+
+# Add aptly repository using modern signed-by format
+# Uses the new repository URL format from the official guide
+- name: add aptly repository
+  become: true
   apt_repository:
-    repo: 'deb http://repo.aptly.info/ squeeze main'
+    repo: "deb [signed-by=/etc/apt/keyrings/aptly.asc] http://repo.aptly.info/release {{ aptly_distribution }} main"
     state: present
+    filename: aptly
+    update_cache: false  # We'll update cache in the next task
 
-- name: install required packages
-  become: yes
+# Install required packages with explicit cache update
+# Groups related packages and ensures dependency resolution
+- name: install aptly and required packages
+  become: true
   apt:
-    name: gnupg2,rng-tools,aptly, curl
-    update_cache: yes
+    name:
+      - gnupg2
+      - rng-tools  # Provides entropy for key generation
+      - aptly
+      - curl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600  # Cache is valid for 1 hour
 
 # begin key creation tasks (automatically generates and imports a DSA key-pair to get you up and running quickly)
 
+# Check if hardware random device is available
+- name: check if hardware random device exists
+  stat:
+    path: /dev/hwrandom
+  register: hwrandom_device
 
-- name: start rngd for entropy creation
+# Start entropy daemon for secure key generation if hardware random available
+# Ensures sufficient entropy during GPG key creation
+- name: start rngd for entropy creation (hardware random)
   become: true
   command: rngd -b -r /dev/hwrandom
   args:
-    creates: "{{ aptly_gpg_key_dir }}/key.sec"
+    creates: "{{ aptly_gpg_key_dir }}/key.pub"
+  when: hwrandom_device.stat.exists
+
+# Fallback entropy generation using urandom for containers/VMs
+- name: start rngd for entropy creation (urandom fallback)
+  become: true
+  command: rngd -b -r /dev/urandom
+  args:
+    creates: "{{ aptly_gpg_key_dir }}/key.pub"
+  when: not hwrandom_device.stat.exists
 
 - name: create aptly_gpg_key_dir
   file:
     path: "{{ aptly_gpg_key_dir }}"
     state: directory
 
-- name: copy gpg key-gen batch file
-  template:
-    src: gpg2_gen_key.j2
-    dest: "{{ aptly_gpg_key_dir }}/gpg2_gen_key"
-    mode: 0644
+# Modern GPG key generation without deprecated secring
+- name: check if GPG key already exists for current user
+  command: gpg2 --list-secret-keys "{{ aptly_key_email }}"
+  register: gpg_key_exists
+  ignore_errors: true
+  become_user: "{{ ansible_user | default('root') }}"
 
-- name: create key
-  command: gpg2 --batch --gen-key {{ aptly_gpg_key_dir }}/gpg2_gen_key
-  args:
-    creates: "{{ aptly_gpg_key_dir }}/key.sec"
+- name: generate GPG keypair using modern approach for current user
+  command: >
+    gpg2 --batch --passphrase '' --quick-generate-key 
+    "{{ aptly_company_name }} (aptly key no passphrase) <{{ aptly_key_email }}>" 
+    rsa2048 sign 0
+  when: gpg_key_exists.rc != 0
+  become_user: "{{ ansible_user | default('root') }}"
 
-- name: stop random source
+# Export the public key for current user
+- name: export public key for current user
+  command: >
+    gpg2 --armor --export "{{ aptly_key_email }}"
+  register: public_key_content
+  become_user: "{{ ansible_user | default('root') }}"
+
+- name: save public key to file
+  copy:
+    content: "{{ public_key_content.stdout }}"
+    dest: "{{ aptly_gpg_key_dir }}/key.pub"
+    mode: '0644'
+
+# Stop the rngd process after key generation completes
+# Uses pkill to terminate the background rngd process
+- name: stop rngd process
   become: true
-  service:
-    name: rng-tools
-    state: stopped
-
-- name: import pub key to gnupg
-  command: gpg2 --import {{ aptly_gpg_key_dir }}/key.pub
-
-# ignore 'already in secret keyring' error
-- name: import sec key to gnupg
-  command: gpg2 --import {{ aptly_gpg_key_dir }}/key.sec
-  ignore_errors: yes
-
-# ignore 'already in secret keyring' error
-- name: import sec key to gnupg
-  command: gpg2 --import {{ aptly_gpg_key_dir }}/key.sec
-  ignore_errors: yes
+  command: pkill rngd
+  ignore_errors: true  # Process might not be running
 
 # end key creation tasks
 
-# # CLI conflict - https://github.com/smira/aptly/issues/234
-- name: start aptly API (will conflict with command line until stopped)
-  command: sh -c "nohup aptly api serve -no-lock 2>&1 >/dev/null &"
+# Start aptly API manually since no systemd service exists
+# Uses nohup to run in background with proper process management
+- name: check if aptly API is already running
+  uri:
+    url: http://localhost:8080/api/version
+    method: GET
+  register: aptly_api_check
+  ignore_errors: true
 
-- name: create repositories
-  command: >-
-    curl -X POST -H 'Content-Type: application/json' --data '{"name": "{{ item.name }}", "comment": "{{ item.comment }}", "DefaultDistribution": "{{ item.default_distribution }}", "DefaultComponent": "{{ item.default_component }}" }' http://localhost:8080/api/repos
+- name: start aptly API server
+  shell: nohup aptly api serve -listen=:8080 -no-lock </dev/null >/dev/null 2>&1 &
+  when: aptly_api_check.status is not defined or aptly_api_check.status != 200
+  become_user: "{{ ansible_user | default('root') }}"
+
+# Wait for API to be ready
+- name: wait for aptly API to be ready
+  uri:
+    url: http://localhost:8080/api/version
+    method: GET
+  register: api_ready
+  until: api_ready.status == 200
+  retries: 30
+  delay: 1
+
+# Create repositories using the updated API format that matches the Swagger documentation
+- name: check if repository already exists
+  uri:
+    url: "http://localhost:8080/api/repos/{{ item.name }}"
+    method: GET
+  register: repo_exists
+  ignore_errors: true
   with_items: 
     - "{{ aptly_repositories }}"
   when: aptly_repositories is defined
+
+- name: create repositories
+  uri:
+    url: http://localhost:8080/api/repos
+    method: POST
+    body_format: json
+    body:
+      Name: "{{ item.item.name }}"
+      Comment: "{{ item.item.comment }}"
+      DefaultDistribution: "{{ item.item.default_distribution }}"
+      DefaultComponent: "{{ item.item.default_component }}"
+    headers:
+      Content-Type: application/json
+    status_code: [200, 201]
+  with_items: 
+    - "{{ repo_exists.results }}"
+  when: 
+    - aptly_repositories is defined
+    - item.status is defined
+    - item.status == 404  # Only create if repo doesn't exist
 
 - include_tasks: test.yml

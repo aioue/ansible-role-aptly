@@ -1,0 +1,15 @@
+---
+- hosts: localhost
+  become: true
+  vars:
+    aptly_company_name: testcompany
+    aptly_key_email: test@example.com
+    aptly_repositories:
+      - name: "testcompany-dev"
+        comment: development packages
+        default_distribution: "{{ ansible_distribution_release }}"
+        default_component: main
+  roles:
+    - role: "{{ playbook_dir }}/.."
+      vars:
+        aptly_gpg_key_dir: "/tmp/aptly-test-keys" 

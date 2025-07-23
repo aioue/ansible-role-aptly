@@ -4,10 +4,10 @@ aptly_key_email: foo@bar.com
 aptly_company_name: yourcompany
 aptly_repositories:
 - name: "{{ aptly_company_name }}-dev"
-  comment: developent packages
-  default_distribution: trusty
+  comment: development packages
+  default_distribution: noble  # Ubuntu 24.04 LTS - current supported version
   default_component: main
 - name: "{{ aptly_company_name }}-test"
   comment: test packages
-  default_distribution: trusty
+  default_distribution: noble  # Ubuntu 24.04 LTS - current supported version
   default_component: main
