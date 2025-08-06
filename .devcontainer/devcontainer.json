@@ -1,17 +1,14 @@
 {
 	"name": "ansible-role-aptly",
 
-	"build": {
-		// Path is relative to the devcontainer.json file
-		"dockerfile": "Dockerfile",
-		"args": {
-			// Set vscode devcontainer arg for Dockerfile validation
-			"vscodedevcontainer": "true"
-		}
-	},
+	// Use Docker Compose for multi-container testing environment
+	"dockerComposeFile": "../docker-compose.yml",
+	"service": "aptly-server",
+	"workspaceFolder": "/workspaces/ansible-role-aptly",
 
 	// Features to add to the dev container
 	"features": {
+		"ghcr.io/devcontainers/features/git:1": {},
 		"ghcr.io/devcontainers/features/python:1": {
 			"toolsToInstall": "virtualenv,argcomplete"
 		}
@@ -23,6 +20,7 @@
 	"postStartCommand": "echo '🚀 Ansible role testing environment ready!'",
 
 	"mounts": [
+		"type=bind,source=${localWorkspaceFolder},target=/workspaces/ansible-role-aptly",
 		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh",
 		"source=ansible-role-aptly-bashhistory,target=/commandhistory,type=volume"
 	],
@@ -45,7 +43,8 @@
 				},
 				"ansible.python.interpreterPath": "/usr/bin/python3",
 				"ansible.validation.lint.enabled": true,
-				"ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint"
+				"ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint",
+				"git.enabled": true
 			}
 		}
 	},

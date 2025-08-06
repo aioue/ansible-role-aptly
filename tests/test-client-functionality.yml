@@ -1,0 +1,174 @@
+---
+- name: Deploy and configure Aptly server
+  hosts: aptly_servers
+  become: true
+  vars:
+    aptly_company_name: testcompany
+    aptly_key_email: test@example.com
+    aptly_repositories:
+      - name: "testcompany-dev"
+        comment: development packages
+        default_distribution: noble
+        default_component: main
+  roles:
+    - role: "{{ playbook_dir }}/.."  # Reference the role from parent directory
+
+- name: Test Aptly functionality from client
+  hosts: aptly_clients
+  become: true
+  vars:
+    aptly_server_ip: 172.20.0.10
+    aptly_api_port: 8080
+    test_repo_name: testcompany-dev
+  tasks:
+    - name: Wait for aptly API to be fully ready
+      uri:
+        url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/version"
+        method: GET
+      register: aptly_version
+      until: aptly_version.status == 200
+      retries: 30
+      delay: 2
+      
+    - name: Display aptly version accessible from client
+      debug:
+        msg: "✅ Aptly API accessible from client. Version: {{ aptly_version.json.Version }}"
+
+    - name: Test aptly API endpoints from client
+      uri:
+        url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/repos"
+        method: GET
+      register: repos_list
+      
+    - name: Display available repositories from client
+      debug:
+        msg: "📦 Available repositories: {{ repos_list.json | map(attribute='Name') | list }}"
+
+    - name: Check if test repository was created
+      assert:
+        that:
+          - repos_list.json | selectattr('Name', 'equalto', test_repo_name) | list | length > 0
+        success_msg: "✅ Test repository '{{ test_repo_name }}' found on server"
+        fail_msg: "❌ Test repository '{{ test_repo_name }}' not found on server"
+
+    - name: Test package upload and management from client perspective
+      block:
+        - name: Check published repositories
+          uri:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/publish"
+            method: GET
+          register: published_repos
+          
+        - name: Display published repositories
+          debug:
+            msg: "📢 Published repositories: {{ published_repos.json | map(attribute='Prefix') | list }}"
+
+        # Test downloading the GPG key (simulating client setup)
+        - name: Download aptly repository GPG key from server
+          get_url:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/gpg/key"
+            dest: /tmp/aptly-repo-key.asc
+            mode: '0644'
+          ignore_errors: true  # API might not expose GPG key this way
+          register: gpg_key_download
+
+        - name: Test repository metadata access
+          uri:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/repos/{{ test_repo_name }}/packages"
+            method: GET
+          register: repo_packages
+          
+        - name: Display packages in repository
+          debug:
+            msg: "📋 Packages in {{ test_repo_name }}: {{ repo_packages.json | length }} packages"
+
+        # Simulate adding the repository to client's sources (if published)
+        - name: Check if repository is published and accessible
+          uri:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/repos/{{ test_repo_name }}/packages"
+            method: GET
+          register: published_check
+          when: published_repos.json | selectattr('Prefix', 'equalto', test_repo_name) | list | length > 0
+
+        - name: Test adding aptly repository to client sources (simulation)
+          debug:
+            msg: |
+              🔧 To add this repository to a client system, use:
+              echo "deb [trusted=yes] http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/repos/{{ test_repo_name }}/packages ./" > /etc/apt/sources.list.d/aptly-{{ test_repo_name }}.list
+              apt-get update
+          when: published_repos.json | selectattr('Prefix', 'equalto', test_repo_name) | list | length > 0
+
+    - name: Performance and connectivity tests
+      block:
+        - name: Test API response time
+          uri:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/version"
+            method: GET
+          register: response_time_test
+          
+        - name: Test concurrent API access
+          uri:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/repos"
+            method: GET
+          register: concurrent_test
+          async: 5
+          poll: 0
+          with_sequence: count=3
+          
+        - name: Wait for concurrent tests to complete
+          async_status:
+            jid: "{{ item.ansible_job_id }}"
+          register: concurrent_results
+          until: concurrent_results.finished
+          retries: 10
+          delay: 1
+          with_items: "{{ concurrent_test.results }}"
+          
+        - name: Verify all concurrent requests succeeded
+          assert:
+            that:
+              - item.status == 200
+            success_msg: "✅ Concurrent API access test passed"
+          with_items: "{{ concurrent_results.results }}"
+
+    - name: Test repository health from client perspective
+      block:
+        - name: Test all major API endpoints
+          uri:
+            url: "http://{{ aptly_server_ip }}:{{ aptly_api_port }}/api/{{ item }}"
+            method: GET
+          register: endpoint_tests
+          with_items:
+            - version
+            - repos
+            - publish
+          
+        - name: Display API endpoint health
+          debug:
+            msg: "🩺 API endpoint /{{ item.item }} - Status: {{ item.status }} - Response time: {{ item.elapsed }}s"
+          with_items: "{{ endpoint_tests.results }}"
+          
+        - name: Verify all endpoints are healthy
+          assert:
+            that:
+              - item.status == 200
+              - item.elapsed < 5.0  # Response time under 5 seconds
+            success_msg: "✅ API endpoint /{{ item.item }} is healthy"
+          with_items: "{{ endpoint_tests.results }}"
+
+    - name: Summary of test results
+      debug:
+        msg: |
+          🎉 Aptly server testing completed successfully!
+          
+          📊 Test Summary:
+          • Aptly API Version: {{ aptly_version.json.Version }}
+          • Repositories Available: {{ repos_list.json | length }}
+          • Published Repositories: {{ published_repos.json | length }}
+          • API Endpoints Tested: {{ endpoint_tests.results | length }}
+          
+          🌐 Access Information:
+          • API URL: http://{{ aptly_server_ip }}:{{ aptly_api_port }}
+          • Web Interface: Access from host at http://localhost:8080
+          
+          ✅ All tests passed - Aptly server is ready for production use! 

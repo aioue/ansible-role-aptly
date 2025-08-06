@@ -1,0 +1,56 @@
+services:
+  aptly-server:
+    image: ubuntu:noble
+    container_name: aptly-server
+    hostname: aptly-server
+    privileged: true  # Required for systemd
+    # Use systemd as init system for proper service management
+    command: /sbin/init
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - aptly-data:/var/lib/aptly
+      - aptly-config:/home/ubuntu/.aptly
+    ports:
+      - "8080:8080"  # Aptly API port
+    networks:
+      aptly-network:
+        ipv4_address: 172.20.0.10
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+    # Install systemd and prepare for Aptly API service
+    working_dir: /workspaces/ansible-role-aptly
+    # Install systemd and essential packages during container build
+    entrypoint: >
+      bash -c "
+      apt-get update && 
+      apt-get install -y systemd systemd-sysv init procps && 
+      apt-get clean && 
+      rm -rf /var/lib/apt/lists/* &&
+      exec /sbin/init
+      "
+
+  aptly-client:
+    image: ubuntu:noble
+    container_name: aptly-client
+    hostname: aptly-client
+    # Keep container running for testing
+    command: sleep infinity
+    networks:
+      aptly-network:
+        ipv4_address: 172.20.0.20
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+    # Client container for testing aptly repository functionality
+
+networks:
+  aptly-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  aptly-data:
+    driver: local
+  aptly-config:
+    driver: local 

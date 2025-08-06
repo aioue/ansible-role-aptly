@@ -1,0 +1,43 @@
+---
+- name: Deploy Aptly server locally
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    aptly_company_name: testcompany
+    aptly_key_email: test@example.com
+    aptly_repositories:
+      - name: "testcompany-dev"
+        comment: "Development packages for testing"
+        default_distribution: noble
+        default_component: main
+  roles:
+    - role: "{{ playbook_dir }}/.."  # Reference the role from parent directory
+
+- name: Test Aptly API locally
+  hosts: localhost
+  connection: local
+  become: false
+  tasks:
+    - name: Wait for Aptly API to be available
+      uri:
+        url: http://localhost:8080/api/version
+        method: GET
+      register: aptly_version
+      retries: 10
+      delay: 3
+      until: aptly_version.status == 200
+      
+    - name: Display Aptly version
+      debug:
+        msg: "Aptly API is running. Version: {{ aptly_version.json.Version }}"
+      
+    - name: List repositories
+      uri:
+        url: http://localhost:8080/api/repos
+        method: GET
+      register: repos_list
+      
+    - name: Display repositories
+      debug:
+        msg: "Available repositories: {{ repos_list.json | map(attribute='Name') | list }}" 

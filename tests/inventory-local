@@ -1,0 +1,6 @@
+[aptly_servers]
+localhost ansible_connection=local
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_become=true 
