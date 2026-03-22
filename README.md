@@ -1,3 +1,5 @@
+## ℹ️ Notice: This repo is no longer maintained.
+
 ## aptly
 
 * Installs the [aptly](http://www.aptly.info/) repository manager and enables the [REST API](http://www.aptly.info/doc/api/)
