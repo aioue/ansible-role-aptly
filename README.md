@@ -1,4 +1,4 @@
-## ℹ️ Notice: This repo is no longer maintained.
+## ℹ️ Notice: This repo is no longer maintained. Collaborator requests welcome.
 
 ## aptly
 
